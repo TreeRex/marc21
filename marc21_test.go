@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	recordData = "00034 the string needs to be long" + string(recordTerminator)
+	recordData   = "00034 the string needs to be long" + string(recordTerminator)
 	recordLength = len(recordData)
 )
 
@@ -22,7 +22,7 @@ func TestReadRecord(t *testing.T) {
 	}
 	if n != recordLength {
 		t.Errorf("Returned record size should be %d, got %v", recordLength, n)
-	}		
+	}
 	if !bytes.Equal([]byte(recordData), rec) {
 		t.Errorf("Read data does not equal source data: %v", rec)
 	}
@@ -30,10 +30,10 @@ func TestReadRecord(t *testing.T) {
 
 func TestDecodeDecimal(t *testing.T) {
 	if v := decodeDecimal([]byte("03245")); v != 3245 {
-		t.Errorf("Conversion of \"03245\" did not equal 3245, rather %v", v);
+		t.Errorf("Conversion of \"03245\" did not equal 3245, rather %v", v)
 	}
 
 	if v := decodeDecimal([]byte("0")); v != 0 {
-		t.Errorf("Conversion of \"0\" did not equal 0, rather %v", v);
+		t.Errorf("Conversion of \"0\" did not equal 0, rather %v", v)
 	}
 }

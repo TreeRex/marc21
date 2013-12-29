@@ -9,18 +9,18 @@ import (
 )
 
 var (
-	errInvalidLength = errors.New("marc21: record length is invalid")
+	errInvalidLength      = errors.New("marc21: record length is invalid")
 	errNoRecordTerminator = errors.New("marc21: record must end in a RT")
 )
 
 const (
-	delimiter = 0x1f
-	fieldTerminator = 0x1e
+	delimiter        = 0x1f
+	fieldTerminator  = 0x1e
 	recordTerminator = 0x1d
 )
 
 const (
-	leaderSize = 24
+	leaderSize    = 24
 	maxRecordSize = 99999
 )
 
@@ -33,7 +33,7 @@ func readRecord(r io.Reader) (int, []byte, error) {
 	}
 
 	rlen := decodeDecimal(tmp)
-	if rlen < leaderSize + 2 || rlen > maxRecordSize {
+	if rlen < leaderSize+2 || rlen > maxRecordSize {
 		// (I think) the minimal size for a 'valid' record is the
 		// size of the leader with a field terminator (ending the
 		// directory) and the record terminator.
@@ -48,7 +48,7 @@ func readRecord(r io.Reader) (int, []byte, error) {
 		return 0, nil, e
 	}
 
-	if result[len(result) - 1] != recordTerminator {
+	if result[len(result)-1] != recordTerminator {
 		return 0, nil, errNoRecordTerminator
 	}
 
@@ -58,7 +58,7 @@ func readRecord(r io.Reader) (int, []byte, error) {
 func decodeDecimal(n []byte) int {
 	result := 0
 	for i := range n {
-		result = (10 * result) + int(n[i] - '0')
+		result = (10 * result) + int(n[i]-'0')
 	}
 	return result
 }
