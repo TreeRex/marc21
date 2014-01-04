@@ -101,7 +101,7 @@ func (m *MarcRecord) GetRawField(tag string) VariableField {
 
 	result := make([][]byte, len(entry))
 	for i := range entry {
-		start := entry[i].startingOffset;
+		start := entry[i].startingOffset
 		end := entry[i].startingOffset + entry[i].fieldLength
 		result[i] = m.RawRecord[start:end]
 	}

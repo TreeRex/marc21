@@ -4,16 +4,17 @@ package marc21
 
 import (
 	"bytes"
-//	"fmt"
 	"strings"
 	"testing"
 )
 
 const (
-	fullRecord = "00458nam a22001577u 4500001001200000005001700012008004100029035001600070245005400086260004100140300003500181650003100216710003300247988001300280906000700293\x1e000000002-7\x1e20120831093346.0\x1e821202|1937    |||||||  |||| |0||||eng|d\x1e0 \x1faocm83544809\x1e00\x1faGarden exhibition /\x1fcSan Francisco Museum of Art.\x1e0 \x1faSan Francisco :\x1fbThe Museum,\x1fc[1937]\x1e  \x1fa1 folded sheet (4p.) ;\x1fc14 cm.\x1e 0\x1faHorticultural exhibitions.\x1e2 \x1faSan Francisco Museum of Art.\x1e  \x1fa20020608\x1e  \x1f0MH\x1e\x1d"
+	// this record extracted from the Harvard Library Open Metadata
+	// http://openmetadata.lib.harvard.edu/bibdata
+	fullRecord    = "00458nam a22001577u 4500001001200000005001700012008004100029035001600070245005400086260004100140300003500181650003100216710003300247988001300280906000700293\x1e000000002-7\x1e20120831093346.0\x1e821202|1937    |||||||  |||| |0||||eng|d\x1e0 \x1faocm83544809\x1e00\x1faGarden exhibition /\x1fcSan Francisco Museum of Art.\x1e0 \x1faSan Francisco :\x1fbThe Museum,\x1fc[1937]\x1e  \x1fa1 folded sheet (4p.) ;\x1fc14 cm.\x1e 0\x1faHorticultural exhibitions.\x1e2 \x1faSan Francisco Museum of Art.\x1e  \x1fa20020608\x1e  \x1f0MH\x1e\x1d"
 	fullRecordLen = len(fullRecord)
 
-	titleStatement = "00\x1faGarden exhibition /\x1fcSan Francisco Museum of Art.\x1e";
+	titleStatement = "00\x1faGarden exhibition /\x1fcSan Francisco Museum of Art.\x1e"
 )
 
 func TestReadRecord(t *testing.T) {
@@ -56,13 +57,13 @@ func TestDirectoryLoader(t *testing.T) {
 }
 
 func TestRawFieldExtraction(t *testing.T) {
-	m,_ := NewMarcRecord([]byte(fullRecord))
-	
+	m, _ := NewMarcRecord([]byte(fullRecord))
+
 	field := m.GetRawField("245")
 	if field.ValueCount() != 1 {
 		t.Fatalf("More than one entry value returned")
 	}
-	
+
 	if !bytes.Equal([]byte(titleStatement), field.GetRawValue(0)) {
 		t.Errorf("Returned entry does not match raw data")
 	}
@@ -73,4 +74,3 @@ func TestRawFieldExtraction(t *testing.T) {
 		t.Errorf("Non-existent field returns non-0 value count")
 	}
 }
-
