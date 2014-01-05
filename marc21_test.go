@@ -68,9 +68,49 @@ func TestRawFieldExtraction(t *testing.T) {
 		t.Errorf("Returned entry does not match raw data")
 	}
 
+	if field.IsControlField() {
+		t.Errorf("Field 245 is not a control field")
+	}
+
 	// ask for a non-existent field
 	field = m.GetRawField("666")
 	if field.ValueCount() != 0 {
 		t.Errorf("Non-existent field returns non-0 value count")
+	}
+
+	// get a control field
+	field = m.GetRawField("001")
+	if field.ValueCount() != 1 {
+		t.Errorf("Required field \"001\" not found")
+	}
+	if !field.IsControlField() {
+		t.Errorf("Field \"001\" not marked as a control field")
+	}
+}
+
+func TestRawSubFieldExtraction(t *testing.T) {
+	m, _ := NewMarcRecord([]byte(fullRecord))
+	field := m.GetRawField("245")
+
+	subfield := field.GetNthRawSubfield("a", 0)
+	if subfield == nil {
+		t.Errorf("Unable to get 245$a")
+	}
+	if string(subfield) != "Garden exhibition /" {
+		t.Errorf("Value returned for 245$a is wrong: %v", string(subfield))
+	}
+
+	subfield = field.GetNthRawSubfield("z", 0)
+	if subfield != nil {
+		t.Errorf("Got a value for 245$z, which doesn't exist")
+	}
+
+	subfield = field.GetNthRawSubfield("c", 0)
+
+	if subfield == nil {
+		t.Errorf("Unable to get 245$c")
+	}
+	if string(subfield) != "San Francisco Museum of Art." {
+		t.Errorf("Value returned for 245$c is wrong: %v", string(subfield))
 	}
 }
