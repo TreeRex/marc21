@@ -114,3 +114,16 @@ func TestRawSubFieldExtraction(t *testing.T) {
 		t.Errorf("Value returned for 245$c is wrong: %v", string(subfield))
 	}
 }
+
+func TestSubFieldExtraction(t *testing.T) {
+	m, _ := NewMarcRecord([]byte(fullRecord))
+	field := m.GetRawField("245")
+
+	subfield := field.GetNthSubfield("a", 0)
+	if subfield == "" {
+		t.Errorf("Unable to get 245$a")
+	}
+	if subfield != "Garden exhibition /" {
+		t.Errorf("Value returned for 245$a is wrong: %v", subfield)
+	}
+}

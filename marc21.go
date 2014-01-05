@@ -17,11 +17,6 @@ var (
 )
 
 const (
-	ControlField = iota
-	DataField
-)
-
-const (
 	delimiter        = 0x1f
 	fieldTerminator  = 0x1e
 	recordTerminator = 0x1d
@@ -32,6 +27,9 @@ const (
 	maxRecordSize = 99999
 )
 
+// A transcoder transcodes a slice into a Unicode string.
+type transcoderFunc func(bytes []byte) (string, error)
+
 // FIXME: location is not a good name for this
 type location struct {
 	offset int
@@ -39,8 +37,9 @@ type location struct {
 }
 
 type VariableField struct {
-	tag     string
-	rawData [][]byte
+	tag        string
+	rawData    [][]byte
+	transcoder transcoderFunc
 }
 
 // The identifier length and indicator count are not stored because they are
@@ -55,6 +54,7 @@ type MarcRecord struct {
 	CatalogingForm    byte
 	MultipartLevel    byte
 	Directory         map[string][]location
+	transcoder        transcoderFunc
 }
 
 // Array of valid values for positions in the MARC 21 leader
@@ -102,6 +102,15 @@ func NewMarcRecord(rawData []byte) (*MarcRecord, error) {
 	m.CatalogingForm = rawData[18]
 	m.MultipartLevel = rawData[19]
 
+	switch m.CharacterEncoding {
+	case ' ':
+		m.transcoder = marc8Transcoder
+	case 'a':
+		m.transcoder = utf8Transcoder
+	default:
+		return nil, fmt.Errorf("Unknown Character Encoding \"%s\"", string(m.CharacterEncoding))
+	}
+
 	m.Directory = decodeDirectory(rawData)
 
 	return m, nil
@@ -120,7 +129,7 @@ func (m *MarcRecord) GetRawField(tag string) VariableField {
 		result[i] = m.RawRecord[start:end]
 	}
 
-	return VariableField{tag, result}
+	return VariableField{tag, result, m.transcoder}
 }
 
 func (m *MarcRecord) GetControlField(tag string) (string, error) {
@@ -211,10 +220,23 @@ loop:
 	return nil
 }
 
-//func (f *VariableField) GetNthSubfield(subfield string, index int) string {
-//	raw := f.GetNthRawSubfield(subfield, index)
-//
-//}
+func (f *VariableField) GetNthSubfield(subfield string, index int) string {
+	raw := f.GetNthRawSubfield(subfield, index)
+	if raw != nil {
+		t, _ := f.transcoder(raw)
+		return t
+	}
+	return ""
+}
+
+func utf8Transcoder(bytes []byte) (string, error) {
+	return string(bytes), nil
+}
+
+func marc8Transcoder(bytes []byte) (string, error) {
+	// FIXME: write the marc8Transcoder
+	return string(bytes), nil
+}
 
 //
 // Internal functions
