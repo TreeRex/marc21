@@ -57,7 +57,7 @@ func TestDirectoryLoader(t *testing.T) {
 }
 
 func TestRawFieldExtraction(t *testing.T) {
-	m, _ := NewMarcRecord([]byte(fullRecord))
+	m, _ := NewMarcRecord([]byte(fullRecord), true)
 
 	field := m.GetRawField("245")
 	if field.ValueCount() != 1 {
@@ -89,7 +89,7 @@ func TestRawFieldExtraction(t *testing.T) {
 }
 
 func TestRawSubFieldExtraction(t *testing.T) {
-	m, _ := NewMarcRecord([]byte(fullRecord))
+	m, _ := NewMarcRecord([]byte(fullRecord), true)
 	field := m.GetRawField("245")
 
 	subfield := field.GetNthRawSubfield("a", 0)
@@ -116,7 +116,8 @@ func TestRawSubFieldExtraction(t *testing.T) {
 }
 
 func TestSubFieldExtraction(t *testing.T) {
-	m, _ := NewMarcRecord([]byte(fullRecord))
+	// don't validate leader, just to make sure that works
+	m, _ := NewMarcRecord([]byte(fullRecord), false)
 	field := m.GetRawField("245")
 
 	subfield := field.GetNthSubfield("a", 0)
@@ -125,5 +126,23 @@ func TestSubFieldExtraction(t *testing.T) {
 	}
 	if subfield != "Garden exhibition /" {
 		t.Errorf("Value returned for 245$a is wrong: %v", subfield)
+	}
+}
+
+
+func TestGetSubfields(t *testing.T) {
+	m, _ := NewMarcRecord([]byte(fullRecord), false)
+	field := m.GetRawField("245")
+	ids := field.GetSubfields(0)
+
+	if len(ids) != 2 {
+		t.Errorf("Subfield list should have 2 elements")
+	}
+
+	if ids[0] != "a" {
+		t.Errorf("First subfield should be 'a', got '%v'", ids[0])
+	}
+	if ids[1] != "c" {
+		t.Errorf("Second subfield should be 'c', got '%v'", ids[1])
 	}
 }

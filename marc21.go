@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"sort"
 	"strings"
 )
 
@@ -37,9 +39,14 @@ type location struct {
 }
 
 type VariableField struct {
-	tag        string
+	Tag        string
 	rawData    [][]byte
 	transcoder transcoderFunc
+}
+
+type Reader struct {
+	r io.Reader
+	validate bool
 }
 
 // The identifier length and indicator count are not stored because they are
@@ -57,7 +64,7 @@ type MarcRecord struct {
 	transcoder        transcoderFunc
 }
 
-// Array of valid values for positions in the MARC 21 leader
+// Array of valid values for positions in the MARC 21 Bibliographic record leader
 var marc21LeaderValues = []struct {
 	offset int
 	values string
@@ -79,15 +86,32 @@ var marc21LeaderValues = []struct {
 	{23, "0"}, // constant integer
 }
 
+func NewReader(rdr io.Reader, validate bool) *Reader {
+	nr := new(Reader)
+	nr.r = rdr
+	nr.validate = validate
+	return nr
+}
+
+func (r *Reader) Next() (*MarcRecord, error) {
+	_, raw, err := readRecord(r.r)
+	if (err == io.EOF) {
+		return nil, nil
+	} else if (err != nil) {
+		return nil, err
+	}
+	return NewMarcRecord(raw, r.validate)
+}
+
 //
 // MarcRecord Functions
 //
 
-func NewMarcRecord(rawData []byte) (*MarcRecord, error) {
+func NewMarcRecord(rawData []byte, validate bool) (*MarcRecord, error) {
 	// this assumes that rawData is a superficially valid Z39.2
 	// record: the length is encoded in the first five bytes and
 	// the final byte is a recordTerminator.
-	if !validLeader(rawData) {
+	if validate && !validLeader(rawData) {
 		return nil, errInvalidLeader
 	}
 
@@ -108,12 +132,32 @@ func NewMarcRecord(rawData []byte) (*MarcRecord, error) {
 	case 'a':
 		m.transcoder = utf8Transcoder
 	default:
-		return nil, fmt.Errorf("Unknown Character Encoding \"%s\"", string(m.CharacterEncoding))
+		// I'm not sure what the best thing to do is here: if leader validation
+		// is turned off we will get here, which is problematic
+		m.transcoder = utf8Transcoder
+		//return nil, fmt.Errorf("Unknown Character Encoding \"%s\"", string(m.CharacterEncoding))
 	}
 
 	m.Directory = decodeDirectory(rawData)
 
 	return m, nil
+}
+
+// GetFieldList returns a sorted list of the field tags in the record.
+func (m *MarcRecord) GetFieldList() []string {
+	keys := make([]string, len(m.Directory))
+	i := 0
+	for k, _ := range m.Directory {
+		keys[i] = k
+		i++
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// GetLeader returns the leader of the record
+func (m *MarcRecord) GetLeader() string {
+	return string(m.RawRecord[:leaderSize])
 }
 
 func (m *MarcRecord) GetRawField(tag string) VariableField {
@@ -133,7 +177,7 @@ func (m *MarcRecord) GetRawField(tag string) VariableField {
 }
 
 func (m *MarcRecord) GetControlField(tag string) (string, error) {
-	if !isControlFieldTag(tag) {
+	if !IsControlFieldTag(tag) {
 		return "", fmt.Errorf("marc21: \"%s\" is not a valid control field", tag)
 	}
 
@@ -145,11 +189,14 @@ func (m *MarcRecord) GetControlField(tag string) (string, error) {
 	if field.ValueCount() > 1 {
 		return "", fmt.Errorf("marc21: too many instances of control field \"%s\"", tag)
 	}
-	return string(field.rawData[0]), nil
+
+	cf := field.rawData[0]
+
+	return string(cf[:len(cf) - 1]), nil
 }
 
 func (m *MarcRecord) GetDataField(tag string) (VariableField, error) {
-	if isControlFieldTag(tag) {
+	if IsControlFieldTag(tag) {
 		return VariableField{}, fmt.Errorf("marc21: \"%s\" is not a data field", tag)
 	}
 	field := m.GetRawField(tag)
@@ -169,7 +216,7 @@ func (f *VariableField) GetRawValue(i int) []byte {
 }
 
 func (f *VariableField) IsControlField() bool {
-	return isControlFieldTag(f.tag)
+	return IsControlFieldTag(f.Tag)
 }
 
 const (
@@ -177,6 +224,22 @@ const (
 	recordSubfield
 	skipSubfield
 )
+
+// GetSubfields returns a sorted list of subfield tags for the field
+// instance specified by index.
+func (f *VariableField) GetSubfields(index int) []string {
+	instance := f.GetRawValue(index)
+
+	subfields := make([]string, 0, 10)
+
+	for i := range instance  {
+		if instance[i] == delimiter {
+			subfields = append(subfields, string(instance[i + 1]))
+		}
+	}
+	sort.Strings(subfields)
+	return subfields
+}
 
 func (f *VariableField) GetNthRawSubfield(subfield string, index int) []byte {
 	instance := f.GetRawValue(index)
@@ -229,6 +292,21 @@ func (f *VariableField) GetNthSubfield(subfield string, index int) string {
 	return ""
 }
 
+func (f *VariableField) GetIndicators(index int) string {
+	ind := ""
+	if f.rawData[index][0] == ' ' {
+		ind += "#"
+	} else {
+		ind += string(f.rawData[index][0])
+	}
+	if f.rawData[index][1] == ' ' {
+		ind += "#"
+	} else {
+		ind += string(f.rawData[index][1])
+	}
+	return ind
+}
+
 func utf8Transcoder(bytes []byte) (string, error) {
 	return string(bytes), nil
 }
@@ -246,13 +324,15 @@ func validLeader(leader []byte) bool {
 	for i := range marc21LeaderValues {
 		s := string(leader[marc21LeaderValues[i].offset])
 		if strings.IndexAny(marc21LeaderValues[i].values, s) == -1 {
+			log.Printf("Leader position %d invalid, got %s expect one of '%s'\n",
+				marc21LeaderValues[i].offset, s, marc21LeaderValues[i].values)
 			return false
 		}
 	}
 	return true
 }
 
-func isControlFieldTag(tag string) bool {
+func IsControlFieldTag(tag string) bool {
 	return tag[0] == '0' && tag[1] == '0'
 }
 
