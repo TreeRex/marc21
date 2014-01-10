@@ -59,12 +59,12 @@ type VariableField struct {
 type Reader struct {
 	r io.Reader
 	validate bool
+	offset uint64
 }
 
-// The identifier length and indicator count are not stored because they are
-// constant in MARC 21 (2 octets each).
 type MarcRecord struct {
 	RawRecord         []byte
+	Offset            uint64
 	Status            byte
 	Type              byte
 	BibLevel          byte
@@ -74,9 +74,14 @@ type MarcRecord struct {
 	MultipartLevel    byte
 	Directory         map[string][]location
 	transcoder        transcoderFunc
+	// The identifier length and indicator count are not stored because they
+	// are constant in MARC 21 (2 octets each).
 }
 
-// Array of valid values for positions in the MARC 21 Bibliographic record leader
+// marc21LeaderValues provies the valid values for positions in the MARC 21
+// Bibliographic leader per http://www.loc.gov/marc/bibliographic/bdleader.html .
+// Unfortunately in the real world it is common for records to have values that
+// are not allowed by the spec.
 var marc21LeaderValues = []struct {
 	offset int
 	values string
@@ -102,24 +107,28 @@ func NewReader(rdr io.Reader, validate bool) *Reader {
 	nr := new(Reader)
 	nr.r = rdr
 	nr.validate = validate
+	nr.offset = 0
 	return nr
 }
 
 func (r *Reader) Next() (*MarcRecord, error) {
-	_, raw, err := readRecord(r.r)
+	rlen, raw, err := readRecord(r.r)
 	if (err == io.EOF) {
 		return nil, nil
 	} else if (err != nil) {
 		return nil, err
 	}
-	return NewMarcRecord(raw, r.validate)
+	offset := r.offset
+	r.offset += uint64(rlen)
+
+	return NewMarcRecord(raw, r.validate, offset)
 }
 
 //
 // MarcRecord Functions
 //
 
-func NewMarcRecord(rawData []byte, validate bool) (*MarcRecord, error) {
+func NewMarcRecord(rawData []byte, validate bool, offset uint64) (*MarcRecord, error) {
 	// this assumes that rawData is a superficially valid Z39.2
 	// record: the length is encoded in the first five bytes and
 	// the final byte is a recordTerminator.
@@ -130,6 +139,7 @@ func NewMarcRecord(rawData []byte, validate bool) (*MarcRecord, error) {
 	m := new(MarcRecord)
 
 	m.RawRecord = rawData
+	m.Offset = offset
 	m.Status = rawData[5]
 	m.Type = rawData[6]
 	m.BibLevel = rawData[7]
@@ -254,43 +264,31 @@ func (f *VariableField) GetSubfields(index int) []string {
 }
 
 func (f *VariableField) GetNthRawSubfield(subfield string, index int) []byte {
-	instance := f.GetRawValue(index)
+	rv := f.GetRawValue(index)
+	i := 2
+	sf := subfield[0]
 
-	state := startSubfield
-	offset, start := 2, 0
-
-loop:
-	for {
-		switch {
-		case state == startSubfield:
-			if instance[offset] == delimiter {
-				if subfield[0] == instance[offset+1] {
-					// found the subfield of interest
-					start = offset + 2
-					state = recordSubfield
-				} else {
-					state = skipSubfield
-				}
-				offset += 1
-			} else {
-				// if we get here we've either hit the fieldTerminator
-				// of the record is corrupt
-				break loop
+	// in a properly formed record rv[i] will be a delimiter, but check anyway
+	if rv[i] == delimiter {
+delim:
+		i++
+		if rv[i] == sf {
+			i++ ; start := i
+			for rv[i] != delimiter && rv[i] != fieldTerminator {
+				i++
 			}
-		case state == recordSubfield:
-			if instance[offset] == delimiter || instance[offset] == fieldTerminator {
-				return instance[start:offset]
-			}
-		case state == skipSubfield:
-			if instance[offset] == delimiter {
-				state = startSubfield
-				// "push back" the delimiter
-				offset -= 1
-			} else if instance[offset] == fieldTerminator {
-				break loop
+			return rv[start:i]
+		}
+		for {
+			switch rv[i] {
+			case delimiter:
+				goto delim
+			case fieldTerminator:
+				return nil
+			default:
+				i++
 			}
 		}
-		offset += 1
 	}
 	return nil
 }
