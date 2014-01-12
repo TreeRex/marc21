@@ -57,9 +57,9 @@ type VariableField struct {
 }
 
 type Reader struct {
-	r io.Reader
+	r        io.Reader
 	validate bool
-	offset uint64
+	offset   uint64
 }
 
 type MarcRecord struct {
@@ -113,9 +113,9 @@ func NewReader(rdr io.Reader, validate bool) *Reader {
 
 func (r *Reader) Next() (*MarcRecord, error) {
 	rlen, raw, err := readRecord(r.r)
-	if (err == io.EOF) {
+	if err == io.EOF {
 		return nil, nil
-	} else if (err != nil) {
+	} else if err != nil {
 		return nil, err
 	}
 	offset := r.offset
@@ -214,7 +214,7 @@ func (m *MarcRecord) GetControlField(tag string) (string, error) {
 
 	cf := field.rawData[0]
 
-	return string(cf[:len(cf) - 1]), nil
+	return string(cf[:len(cf)-1]), nil
 }
 
 func (m *MarcRecord) GetDataField(tag string) (VariableField, error) {
@@ -241,12 +241,6 @@ func (f *VariableField) IsControlField() bool {
 	return IsControlFieldTag(f.Tag)
 }
 
-const (
-	startSubfield = iota
-	recordSubfield
-	skipSubfield
-)
-
 // GetSubfields returns a sorted list of subfield tags for the field
 // instance specified by index.
 func (f *VariableField) GetSubfields(index int) []string {
@@ -254,9 +248,9 @@ func (f *VariableField) GetSubfields(index int) []string {
 
 	subfields := make([]string, 0, 10)
 
-	for i := range instance  {
+	for i := range instance {
 		if instance[i] == delimiter {
-			subfields = append(subfields, string(instance[i + 1]))
+			subfields = append(subfields, string(instance[i+1]))
 		}
 	}
 	sort.Strings(subfields)
@@ -270,10 +264,11 @@ func (f *VariableField) GetNthRawSubfield(subfield string, index int) []byte {
 
 	// in a properly formed record rv[i] will be a delimiter, but check anyway
 	if rv[i] == delimiter {
-delim:
+	delim:
 		i++
 		if rv[i] == sf {
-			i++ ; start := i
+			i++
+			start := i
 			for rv[i] != delimiter && rv[i] != fieldTerminator {
 				i++
 			}

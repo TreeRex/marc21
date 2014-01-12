@@ -141,7 +141,6 @@ func TestSubFieldExtraction(t *testing.T) {
 	}
 }
 
-
 func TestGetSubfields(t *testing.T) {
 	m, _ := NewMarcRecord([]byte(fullRecord), false, 0)
 	field := m.GetRawField("245")
